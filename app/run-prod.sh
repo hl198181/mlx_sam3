@@ -8,6 +8,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$SCRIPT_DIR/logs"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Initialize fnm (Fast Node Manager) if available
+FNM_PATH="/opt/homebrew/opt/fnm/bin/fnm"
+if [ -x "$FNM_PATH" ]; then
+    eval "$("$FNM_PATH" env --shell bash)"
+fi
 BACKEND_DIR="$SCRIPT_DIR/backend"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 
