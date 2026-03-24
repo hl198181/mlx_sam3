@@ -23,6 +23,13 @@ echo -e "${BLUE}║   SAM3 Segmentation Studio Launcher    ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
+# Load environment variables from .env.local if it exists
+if [ -f "$SCRIPT_DIR/.env.local" ]; then
+    set -a
+    source "$SCRIPT_DIR/.env.local"
+    set +a
+fi
+
 # Array to store process PIDs
 PIDS=()
 
