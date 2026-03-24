@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mlxsam3.app</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/clean1master/Project/mlx_sam3/app/run-prod.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/clean1master/Project/mlx_sam3</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/opt/fnm/bin:/Users/clean1master/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/clean1master</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/clean1master/Project/mlx_sam3/app/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/clean1master/Project/mlx_sam3/app/logs/stderr.log</string>
+</dict>
+</plist>

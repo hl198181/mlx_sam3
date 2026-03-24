@@ -13,3 +13,6 @@ wheels/
 sam3-mod-weights/
 vit_block/
 *.jpg
+
+# Service logs
+app/logs/
