@@ -3,6 +3,7 @@ FastAPI backend for SAM3 segmentation model.
 Provides endpoints for image upload, text prompts, box prompts, and segmentation results.
 """
 
+import asyncio
 import io
 import os
 import sys
@@ -31,6 +32,41 @@ processor = None
 # Session storage for processing states
 sessions: dict = {}
 
+# Concurrency and resource limits
+MAX_SESSIONS = 5
+SESSION_TTL = 1800  # 30 minutes
+INFERENCE_TIMEOUT = 30  # seconds to wait in queue before returning 503
+inference_semaphore = asyncio.Semaphore(1)
+
+
+def _remove_session(session_id: str):
+    """Remove a session and release GPU memory."""
+    if session_id in sessions:
+        del sessions[session_id]
+        mx.metal.clear_cache()
+
+
+def _evict_oldest_session():
+    """Remove the least recently active session."""
+    if not sessions:
+        return
+    oldest_id = min(sessions, key=lambda sid: sessions[sid].get("last_active", 0))
+    _remove_session(oldest_id)
+
+
+async def _cleanup_expired_sessions():
+    """Background task to remove expired sessions."""
+    while True:
+        await asyncio.sleep(60)
+        now = time.time()
+        expired = [
+            sid for sid, s in sessions.items()
+            if now - s.get("last_active", 0) > SESSION_TTL
+        ]
+        for sid in expired:
+            print(f"Session {sid} expired, removing.")
+            _remove_session(sid)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,11 +81,15 @@ async def lifespan(app: FastAPI):
     model = build_sam3_image_model()
     processor = Sam3Processor(model)
     print("SAM3 model loaded successfully!")
-    
+
+    cleanup_task = asyncio.create_task(_cleanup_expired_sessions())
+
     yield
-    
+
     # Cleanup
+    cleanup_task.cancel()
     sessions.clear()
+    mx.metal.clear_cache()
 
 
 app = FastAPI(
@@ -179,25 +219,34 @@ async def upload_image(file: UploadFile = File(...)):
     if processor is None:
         raise HTTPException(status_code=503, detail="Model not loaded yet")
     
+    # Read and validate image before acquiring the lock
     try:
-        # Read and validate image
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
-        
-        # Create session
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error processing image: {str(e)}")
+
+    # Evict oldest session if at capacity
+    while len(sessions) >= MAX_SESSIONS:
+        _evict_oldest_session()
+
+    try:
+        await asyncio.wait_for(inference_semaphore.acquire(), timeout=INFERENCE_TIMEOUT)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=503, detail="Server busy, try again later")
+    try:
         session_id = str(uuid.uuid4())
-        
-        # Process image through model (timed)
+
         start_time = time.perf_counter()
         state = processor.set_image(image)
         processing_time_ms = (time.perf_counter() - start_time) * 1000
-        
-        # Store session with image info
+
         sessions[session_id] = {
             "state": state,
             "image_size": image.size,
+            "last_active": time.time(),
         }
-        
+
         return {
             "session_id": session_id,
             "width": image.size[0],
@@ -206,9 +255,10 @@ async def upload_image(file: UploadFile = File(...)):
             "processing_time_ms": round(processing_time_ms, 2),
             "peak_memory_mb": round(mx.get_peak_memory() / (1024 * 1024), 2)
         }
-    
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing image: {str(e)}")
+    finally:
+        inference_semaphore.release()
 
 
 @app.post("/segment/text")
@@ -220,17 +270,22 @@ async def segment_with_text(request: TextPromptRequest):
     session = sessions.get(request.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
+    try:
+        await asyncio.wait_for(inference_semaphore.acquire(), timeout=INFERENCE_TIMEOUT)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=503, detail="Server busy, try again later")
     try:
         start_time = time.perf_counter()
         state = processor.set_text_prompt(request.prompt, session["state"])
         processing_time_ms = (time.perf_counter() - start_time) * 1000
         session["state"] = state
+        session["last_active"] = time.time()
         start = time.perf_counter()
         results = serialize_state(state)
         end = time.perf_counter()
         print(f"Serialization took {end - start:.4f} seconds")
-        
+
         return {
             "session_id": request.session_id,
             "prompt": request.prompt,
@@ -238,9 +293,10 @@ async def segment_with_text(request: TextPromptRequest):
             "processing_time_ms": round(processing_time_ms, 2),
             "peak_memory_mb": round(mx.get_peak_memory() / (1024 * 1024), 2)
         }
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error during segmentation: {str(e)}")
+    finally:
+        inference_semaphore.release()
 
 
 @app.post("/segment/box")
@@ -252,14 +308,18 @@ async def add_box_prompt(request: BoxPromptRequest):
     session = sessions.get(request.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
+    try:
+        await asyncio.wait_for(inference_semaphore.acquire(), timeout=INFERENCE_TIMEOUT)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=503, detail="Server busy, try again later")
     try:
         state = session["state"]
-        
+
         # Store prompted box for display
         if "prompted_boxes" not in state:
             state["prompted_boxes"] = []
-        
+
         # Convert from normalized cxcywh to pixel xyxy for display
         img_w = state["original_width"]
         img_h = state["original_height"]
@@ -268,17 +328,18 @@ async def add_box_prompt(request: BoxPromptRequest):
         y_min = (cy - h / 2) * img_h
         x_max = (cx + w / 2) * img_w
         y_max = (cy + h / 2) * img_h
-        
+
         state["prompted_boxes"].append({
             "box": [x_min, y_min, x_max, y_max],
             "label": request.label
         })
-        
+
         start_time = time.perf_counter()
         state = processor.add_geometric_prompt(request.box, request.label, state)
         processing_time_ms = (time.perf_counter() - start_time) * 1000
         session["state"] = state
-        
+        session["last_active"] = time.time()
+
         return {
             "session_id": request.session_id,
             "box_type": "positive" if request.label else "negative",
@@ -286,9 +347,10 @@ async def add_box_prompt(request: BoxPromptRequest):
             "processing_time_ms": round(processing_time_ms, 2),
             "peak_memory_mb": round(mx.get_peak_memory() / (1024 * 1024), 2)
         }
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error adding box prompt: {str(e)}")
+    finally:
+        inference_semaphore.release()
 
 
 @app.post("/reset")
@@ -303,11 +365,12 @@ async def reset_prompts(request: SessionRequest):
     
     try:
         state = session["state"]
-        
+        session["last_active"] = time.time()
+
         start_time = time.perf_counter()
         processor.reset_all_prompts(state)
         processing_time_ms = (time.perf_counter() - start_time) * 1000
-        
+
         if "prompted_boxes" in state:
             del state["prompted_boxes"]
         
@@ -347,7 +410,7 @@ async def set_confidence(request: ConfidenceRequest):
 async def delete_session(session_id: str):
     """Delete a session and free memory."""
     if session_id in sessions:
-        del sessions[session_id]
+        _remove_session(session_id)
         return {"message": "Session deleted"}
     raise HTTPException(status_code=404, detail="Session not found")
 
