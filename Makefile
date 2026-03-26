@@ -70,7 +70,7 @@ status-gpu:
 	@sudo systemctl status $(GPU_SERVICE_NAME) --no-pager -l 2>/dev/null || echo "❌ GPU 服务未安装"
 
 logs-gpu:
-	@journalctl -u $(GPU_SERVICE_NAME) -n 100 --no-pager
+	@journalctl -u $(GPU_SERVICE_NAME) -f
 
 help:
 	@echo "使用方法: make [命令]"
