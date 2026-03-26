@@ -1,0 +1,19 @@
+[Unit]
+Description=SAM3 GPU Segmentation Studio
+After=network.target
+
+[Service]
+Type=simple
+User=biofuture
+WorkingDirectory=/home/biofuture/Project/mlx_sam3
+Environment=PATH=/home/biofuture/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/home/biofuture
+ExecStart=/bin/bash /home/biofuture/Project/mlx_sam3/app/run.sh --gpu
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sam3-gpu
+
+[Install]
+WantedBy=multi-user.target

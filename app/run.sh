@@ -95,6 +95,12 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM EXIT
 
+# Initialize fnm (for node/npm) if available
+if [ -f "$HOME/.local/bin/fnm" ]; then
+    export PATH="$HOME/.local/bin:$PATH"
+    eval "$(fnm env)"
+fi
+
 # Install backend dependencies using uv (into the project's venv)
 echo -e "${YELLOW}Ensuring backend dependencies...${NC}"
 cd "$PROJECT_ROOT"
