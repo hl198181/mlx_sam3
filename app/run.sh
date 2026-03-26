@@ -34,7 +34,7 @@ if [ "$USE_GPU" = true ]; then
     echo -e "${BLUE}║  SAM3 Segmentation Studio (GPU/CUDA)   ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
     BACKEND_SCRIPT="main_gpu.py"
-    BACKEND_PORT=8001
+    BACKEND_PORT=8000
 else
     echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║   SAM3 Segmentation Studio (MLX)       ║${NC}"
