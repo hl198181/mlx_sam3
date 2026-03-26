@@ -26,14 +26,15 @@ class PositionEmbeddingSine(nn.Module):
         self.scale = scale
 
         self.cache = {}
+        self._precompute_sizes = None
         if precompute_resolution is not None:
-            precompute_sizes = [
+            self._precompute_sizes = [
                 (precompute_resolution // 4, precompute_resolution // 4),
                 (precompute_resolution // 8, precompute_resolution // 8),
                 (precompute_resolution // 16, precompute_resolution // 16),
                 (precompute_resolution // 32, precompute_resolution // 32),
             ]
-            for size in precompute_sizes:
+            for size in self._precompute_sizes:
                 tensors = torch.zeros((1, 1) + size)
                 self(tensors)
 
@@ -83,10 +84,15 @@ class PositionEmbeddingSine(nn.Module):
         batch, _, height, width = shape
 
         cache_key = (height, width)
+        cur_device = x.device if isinstance(x, torch.Tensor) else torch.device('cpu')
         if cache_key in self.cache:
-            return self.cache[cache_key][None].repeat(batch, 1, 1, 1)
+            cached = self.cache[cache_key]
+            if cached.device != cur_device:
+                cached = cached.to(cur_device)
+                self.cache[cache_key] = cached
+            return cached[None].repeat(batch, 1, 1, 1)
 
-        device = x.device if isinstance(x, torch.Tensor) else torch.device('cpu')
+        device = cur_device
 
         y_embed = (
             torch.arange(1, height + 1, dtype=torch.float32, device=device)

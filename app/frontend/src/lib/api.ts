@@ -49,9 +49,52 @@ async function apiFetch<T>(fetchFn: () => Promise<Response>): Promise<T> {
   return response.json();
 }
 
+async function compressImage(file: File, maxSize = 2048, quality = 0.85): Promise<File> {
+  return new Promise((resolve) => {
+    // Skip if already small enough
+    if (file.size < 500 * 1024) {
+      resolve(file);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let { width, height } = img;
+
+      // Scale down if larger than maxSize
+      if (width > maxSize || height > maxSize) {
+        const scale = maxSize / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
+          } else {
+            resolve(file);
+          }
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => resolve(file);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export async function uploadImage(file: File): Promise<UploadResponse> {
+  const compressed = await compressImage(file);
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", compressed);
 
   return apiFetch<UploadResponse>(() =>
     fetch(`${API_BASE}/upload`, {

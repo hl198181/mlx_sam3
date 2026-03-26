@@ -111,7 +111,10 @@ echo -e "${GREEN}Starting Backend (FastAPI) on http://localhost:${BACKEND_PORT}$
 cd "$PROJECT_ROOT"
 
 # Set the API URL for frontend to connect to the correct backend
-export NEXT_PUBLIC_API_URL="http://localhost:${BACKEND_PORT}"
+# Use hostname so browser can reach the backend when accessed remotely
+HOSTNAME=$(hostname -f 2>/dev/null || hostname)
+export NEXT_PUBLIC_API_URL="http://${HOSTNAME}:${BACKEND_PORT}"
+export ALLOWED_DEV_ORIGINS="${HOSTNAME}"
 
 uv run python "$BACKEND_DIR/$BACKEND_SCRIPT" &
 BACKEND_PID=$!

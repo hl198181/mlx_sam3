@@ -138,15 +138,22 @@ class Prompt:
             )
         )
 
+        # Detect device from provided tensors
+        _device = None
+        for t in (box_embeddings, point_embeddings, mask_embeddings, box_mask, point_mask):
+            if isinstance(t, torch.Tensor):
+                _device = t.device
+                break
+
         # Initialize embeds, labels, attention masks.
         box_embeddings, box_labels, box_mask = self._init_box(
-            box_embeddings, box_labels, box_mask, box_seq_len, bs
+            box_embeddings, box_labels, box_mask, box_seq_len, bs, _device
         )
         point_embeddings, point_labels, point_mask = self._init_point(
-            point_embeddings, point_labels, point_mask, point_seq_len, bs
+            point_embeddings, point_labels, point_mask, point_seq_len, bs, _device
         )
         mask_embeddings, mask_labels, mask_mask = self._init_mask(
-            mask_embeddings, mask_labels, mask_mask, mask_seq_len, bs
+            mask_embeddings, mask_labels, mask_mask, mask_seq_len, bs, _device
         )
 
         # Dimension checks
@@ -255,41 +262,38 @@ class Prompt:
 
         return box_seq_len, point_seq_len, mask_seq_len, bs
 
-    def _init_box(self, box_embeddings, box_labels, box_mask, box_seq_len, bs):
+    def _init_box(self, box_embeddings, box_labels, box_mask, box_seq_len, bs, device=None):
         if box_embeddings is None:
-            box_embeddings = torch.zeros((box_seq_len, bs, 4))
+            box_embeddings = torch.zeros((box_seq_len, bs, 4), device=device)
         if box_labels is None:
-            box_labels = torch.ones((box_seq_len, bs), dtype=torch.int64)
+            box_labels = torch.ones((box_seq_len, bs), dtype=torch.int64, device=device)
         if box_mask is None:
-            box_mask = torch.zeros((bs, box_seq_len), dtype=torch.bool)
+            box_mask = torch.zeros((bs, box_seq_len), dtype=torch.bool, device=device)
         return box_embeddings, box_labels, box_mask
 
     def _init_point(
-        self, point_embeddings, point_labels, point_mask, point_seq_len, bs
+        self, point_embeddings, point_labels, point_mask, point_seq_len, bs, device=None
     ):
-        """
-        Identical to _init_box. Except that C=2 for points (vs. 4 for boxes).
-        """
         if point_embeddings is None:
-            point_embeddings = torch.zeros((point_seq_len, bs, 2))
+            point_embeddings = torch.zeros((point_seq_len, bs, 2), device=device)
         if point_labels is None:
             point_labels = torch.ones(
-                (point_seq_len, bs), dtype=torch.int64
+                (point_seq_len, bs), dtype=torch.int64, device=device
             )
         if point_mask is None:
-            point_mask = torch.zeros((bs, point_seq_len), dtype=torch.bool)
+            point_mask = torch.zeros((bs, point_seq_len), dtype=torch.bool, device=device)
         return point_embeddings, point_labels, point_mask
 
     def _init_mask(
-        self, mask_embeddings, mask_labels, mask_mask, mask_seq_len, bs
+        self, mask_embeddings, mask_labels, mask_mask, mask_seq_len, bs, device=None
     ):
         # NOTE: Mask embeddings can be of arbitrary resolution, so we don't initialize it here.
         # In case we append new mask, we check that its resolution matches exisiting ones (if any).
         # In case mask_embeddings is None, we should never encode it.
         if mask_labels is None:
-            mask_labels = torch.ones((mask_seq_len, bs), dtype=torch.int64)
+            mask_labels = torch.ones((mask_seq_len, bs), dtype=torch.int64, device=device)
         if mask_mask is None:
-            mask_mask = torch.zeros((bs, mask_seq_len), dtype=torch.int64)
+            mask_mask = torch.zeros((bs, mask_seq_len), dtype=torch.int64, device=device)
         return mask_embeddings, mask_labels, mask_mask
 
     def append_boxes(self, boxes, labels, mask=None):
@@ -304,7 +308,7 @@ class Prompt:
         assert list(boxes.shape[:2]) == list(labels.shape[:2])
         if mask is None:
             mask = torch.zeros(
-                (bs, boxes.shape[0]), dtype=torch.bool
+                (bs, boxes.shape[0]), dtype=torch.bool, device=boxes.device
             )
 
         self.box_labels, _ = concat_padded_sequences(

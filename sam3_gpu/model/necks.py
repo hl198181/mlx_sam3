@@ -195,12 +195,11 @@ class Sam3DualViTDetNeck(nn.Module):
             sam3_x_out = self.convs[i](x)  # NCHW in, NCHW out
             nchw_shape = sam3_x_out.shape
             sam3_out.append(sam3_x_out)
-            sam3_pos.append(self.position_encoding(nchw_shape).to(sam3_x_out.dtype))
+            sam3_pos.append(self.position_encoding(sam3_x_out).to(sam3_x_out.dtype))
 
             if self.sam2_convs is not None:
                 sam2_x_out = self.sam2_convs[i](x)
-                nchw_shape = sam2_x_out.shape
                 sam2_out.append(sam2_x_out)
-                sam2_pos.append(self.position_encoding(nchw_shape).to(sam2_x_out.dtype))
+                sam2_pos.append(self.position_encoding(sam2_x_out).to(sam2_x_out.dtype))
 
         return sam3_out, sam3_pos, sam2_out, sam2_pos

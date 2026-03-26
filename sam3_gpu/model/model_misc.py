@@ -18,6 +18,7 @@ def inverse_sigmoid(x, eps=1e-3):
 class MultiheadAttentionWrapper(nn.MultiheadAttention):
     def __init__(self, embed_dim, num_heads, **kwargs):
         kwargs["bias"] = True
+        kwargs.setdefault("batch_first", True)
         super().__init__(embed_dim, num_heads, **kwargs)
 
     def forward(self, query, key, value, **kwargs):
