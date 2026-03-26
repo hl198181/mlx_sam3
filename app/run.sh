@@ -18,9 +18,30 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   SAM3 Segmentation Studio Launcher    ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+# Parse arguments
+USE_GPU=false
+for arg in "$@"; do
+    case $arg in
+        --gpu)
+            USE_GPU=true
+            shift
+            ;;
+    esac
+done
+
+if [ "$USE_GPU" = true ]; then
+    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║  SAM3 Segmentation Studio (GPU/CUDA)   ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+    BACKEND_SCRIPT="main_gpu.py"
+    BACKEND_PORT=8001
+else
+    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║   SAM3 Segmentation Studio (MLX)       ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+    BACKEND_SCRIPT="main.py"
+    BACKEND_PORT=8000
+fi
 echo ""
 
 # Load environment variables from .env.local if it exists
@@ -86,9 +107,13 @@ if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
     cd "$SCRIPT_DIR"
 fi
 
-echo -e "${GREEN}Starting Backend (FastAPI) on http://localhost:8000${NC}"
+echo -e "${GREEN}Starting Backend (FastAPI) on http://localhost:${BACKEND_PORT}${NC}"
 cd "$PROJECT_ROOT"
-uv run python "$BACKEND_DIR/main.py" &
+
+# Set the API URL for frontend to connect to the correct backend
+export NEXT_PUBLIC_API_URL="http://localhost:${BACKEND_PORT}"
+
+uv run python "$BACKEND_DIR/$BACKEND_SCRIPT" &
 BACKEND_PID=$!
 PIDS+=($BACKEND_PID)
 
@@ -105,8 +130,13 @@ echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo -e "${GREEN}  Servers are running!${NC}"
 echo -e "${GREEN}  Frontend: http://localhost:3000${NC}"
-echo -e "${GREEN}  Backend:  http://localhost:8000${NC}"
-echo -e "${GREEN}  API Docs: http://localhost:8000/docs${NC}"
+echo -e "${GREEN}  Backend:  http://localhost:${BACKEND_PORT}${NC}"
+echo -e "${GREEN}  API Docs: http://localhost:${BACKEND_PORT}/docs${NC}"
+if [ "$USE_GPU" = true ]; then
+echo -e "${GREEN}  Mode:     GPU (PyTorch/CUDA)${NC}"
+else
+echo -e "${GREEN}  Mode:     MLX (Apple Silicon)${NC}"
+fi
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
 echo -e "${YELLOW}Press Ctrl+C to stop all servers${NC}"

@@ -1,0 +1,1 @@
+from sam3_gpu.model_builder import build_sam3_image_model
