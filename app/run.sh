@@ -119,8 +119,9 @@ cd "$PROJECT_ROOT"
 # Set the API URL for frontend to connect to the correct backend
 # Use hostname so browser can reach the backend when accessed remotely
 HOSTNAME=$(hostname -f 2>/dev/null || hostname)
+LOCAL_IPS=$(ip -4 addr show 2>/dev/null | awk '/inet / {split($2,a,"/"); print a[1]}' | grep -v '127.0.0.1' | tr '\n' ',' | sed 's/,$//')
 export NEXT_PUBLIC_API_URL="http://${HOSTNAME}:${BACKEND_PORT}"
-export ALLOWED_DEV_ORIGINS="${HOSTNAME}"
+export ALLOWED_DEV_ORIGINS="${HOSTNAME},${LOCAL_IPS}"
 
 uv run python "$BACKEND_DIR/$BACKEND_SCRIPT" &
 BACKEND_PID=$!
