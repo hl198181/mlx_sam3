@@ -47,7 +47,7 @@ GPU_SERVICE_SRC := $(SERVICE_DIR)/sam3-gpu.service
 GPU_SERVICE_NAME := sam3-gpu
 
 install-gpu:
-	@sed "s|/home/biofuture|$(HOME)|g" $(GPU_SERVICE_SRC) > /tmp/$(GPU_SERVICE_NAME).service
+	@sed -e "s|__USER__|$(shell whoami)|g" -e "s|__HOME__|$(HOME)|g" $(GPU_SERVICE_SRC) > /tmp/$(GPU_SERVICE_NAME).service
 	@sudo cp /tmp/$(GPU_SERVICE_NAME).service /etc/systemd/system/$(GPU_SERVICE_NAME).service
 	@sudo systemctl daemon-reload
 	@sudo systemctl enable $(GPU_SERVICE_NAME)

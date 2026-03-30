@@ -96,9 +96,13 @@ cleanup() {
 trap cleanup SIGINT SIGTERM EXIT
 
 # Initialize fnm (for node/npm) if available
-if [ -f "$HOME/.local/bin/fnm" ]; then
+FNM_PATH="${HOME}/.local/share/fnm"
+if [ -d "$FNM_PATH" ]; then
+    export PATH="$FNM_PATH:$PATH"
+    eval "$(fnm env --shell bash)"
+elif [ -f "$HOME/.local/bin/fnm" ]; then
     export PATH="$HOME/.local/bin:$PATH"
-    eval "$(fnm env)"
+    eval "$(fnm env --shell bash)"
 fi
 
 # Install backend dependencies using uv (into the project's venv)
@@ -119,7 +123,11 @@ cd "$PROJECT_ROOT"
 # Set the API URL for frontend to connect to the correct backend
 # Use hostname so browser can reach the backend when accessed remotely
 HOSTNAME=$(hostname -f 2>/dev/null || hostname)
-LOCAL_IPS=$(ip -4 addr show 2>/dev/null | awk '/inet / {split($2,a,"/"); print a[1]}' | grep -v '127.0.0.1' | tr '\n' ',' | sed 's/,$//')
+if command -v ip &>/dev/null; then
+    LOCAL_IPS=$(ip -4 addr show 2>/dev/null | awk '/inet / {split($2,a,"/"); print a[1]}' | grep -v '127.0.0.1' | tr '\n' ',' | sed 's/,$//')
+else
+    LOCAL_IPS=$(ifconfig 2>/dev/null | awk '/inet / && !/127.0.0.1/ {print $2}' | tr '\n' ',' | sed 's/,$//')
+fi
 export NEXT_PUBLIC_API_URL="http://${HOSTNAME}:${BACKEND_PORT}"
 export ALLOWED_DEV_ORIGINS="${HOSTNAME},${LOCAL_IPS}"
 

@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=biofuture
-WorkingDirectory=/home/biofuture/Project/mlx_sam3
-Environment=PATH=/home/biofuture/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment=HOME=/home/biofuture
-ExecStart=/bin/bash /home/biofuture/Project/mlx_sam3/app/run.sh --gpu
+User=__USER__
+WorkingDirectory=__HOME__/Project/mlx_sam3
+Environment=PATH=__HOME__/.local/share/fnm/aliases/default/bin:__HOME__/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=__HOME__
+ExecStart=/bin/bash __HOME__/Project/mlx_sam3/app/run.sh --gpu
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
